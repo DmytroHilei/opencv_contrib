@@ -671,6 +671,7 @@ __global__ void aggregate_horizontal_path_kernel(
                 if (DIRECTION > 0)
                 {
                     const int32_t t = right_buffer[j][DP_BLOCK_SIZE - 1];
+                    //#pragma unroll
                     for (unsigned int k = DP_BLOCK_SIZE - 1; k > 0; --k)
                     {
                         right_buffer[j][k] = right_buffer[j][k - 1];
@@ -685,6 +686,7 @@ __global__ void aggregate_horizontal_path_kernel(
                 else
                 {
                     const int32_t t = right_buffer[j][0];
+                    //#pragma unroll
                     for (unsigned int k = 1; k < DP_BLOCK_SIZE; ++k)
                     {
                         right_buffer[j][k - 1] = right_buffer[j][k];
@@ -1369,7 +1371,7 @@ void PathAggregation::operator() (const GpuMat& left, const GpuMat& right, GpuMa
     {
         events[i].record(streams[i]);
         stream.waitEvent(events[i]);
-        streams[i].waitForCompletion();
+        streams[i].waitForCompletion(); //Possibly no need for this line. But benchmark did not give me any good results, but not bad as well, the wait just shiftet to other place
     }
 }
 
