@@ -251,7 +251,9 @@ __device__ inline void store_uint8_vector<2u>(uint8_t *dest, const uint32_t *ptr
 {
     uchar2 uint8x2;
     uint8x2.x = static_cast<uint8_t>(ptr[0]);
-    uint8x2.y = static_cast<uint8_t>(ptr[0]);
+    uint8x2.y = static_cast<uint8_t>(ptr[1]); //This looks like bug. For some reason there is ptr[0] instead of ptr[1]. 
+    // Even without considering the algorithm we stil see that the pattern (ptr[0] ... ptr[N - 1]) is broken there
+    //So I did change prt[0] to ptr[1] so we store disparity d and disparity d+1, not 2 disparity d
     store_as<uchar2>(dest, uint8x2);
 }
 
@@ -1968,11 +1970,18 @@ __global__ void check_consistency_kernel(PtrStep<DST_T> d_leftDisp, const PtrSte
     const int j = blockIdx.x * blockDim.x + threadIdx.x;
     const int i = blockIdx.y * blockDim.y + threadIdx.y;
 
+	if (j >= width || i >= height)
+	{
+	    return;
+	} //Since I add rounding of relation between size of dimentions of the image to size of threads blocks to avoid any possible miss of the pixels,
+	//I  allocate more threads then needed, so I have to check it before
+	
     // left-right consistency check, only on leftDisp, but could be done for rightDisp too
 
     SRC_T mask = d_left(i, j);
     DST_T org = d_leftDisp(i, j);
     int d = org;
+    
     if (subpixel)
     {
         d >>= StereoMatcher::DISP_SHIFT;
@@ -1988,7 +1997,7 @@ __global__ void check_consistency_kernel(PtrStep<DST_T> d_leftDisp, const PtrSte
 template <typename disp_type, typename image_type>
 void check_consistency(PtrStep<disp_type> d_left_disp, const PtrStep<disp_type> d_right_disp, const PtrStep<image_type> d_src_left, int width, int height, bool subpixel, Stream& _stream)
 {
-    const dim3 blocks(width / 16, height / 16);
+    const dim3 blocks(cudev::divUp(width, 16), cudev::divUp(height, 16)); //Instead of floor I use divUp
     const dim3 threads(16, 16);
     cudaStream_t stream = cv::cuda::StreamAccessor::getStream(_stream);
 
